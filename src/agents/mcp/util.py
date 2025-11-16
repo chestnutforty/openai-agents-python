@@ -185,7 +185,7 @@ class MCPUtil:
         """Invoke an MCP tool and return the result as a string."""
         try:
             json_data: dict[str, Any] = json.loads(input_json) if input_json else {}
-            if 'cutoff_date' in context.context:
+            if hasattr(context.context, 'cutoff_date'):
                 json_data['cutoff_date'] = context.context.cutoff_date
                 
             print(f"json_data: {json_data}")
