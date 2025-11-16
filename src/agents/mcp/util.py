@@ -185,6 +185,10 @@ class MCPUtil:
         """Invoke an MCP tool and return the result as a string."""
         try:
             json_data: dict[str, Any] = json.loads(input_json) if input_json else {}
+            if 'cutoff_date' in context.context:
+                json_data['cutoff_date'] = context.context.cutoff_date
+                
+            print(f"json_data: {json_data}")
         except Exception as e:
             if _debug.DONT_LOG_TOOL_DATA:
                 logger.debug(f"Invalid JSON input for tool {tool.name}")
