@@ -239,8 +239,8 @@ class TraceImpl(Trace):
         trace_id: str | None,
         group_id: str | None,
         metadata: dict[str, Any] | None,
-        trace_data: dict[str, Any] | None,
         processor: TracingProcessor,
+        trace_data: dict[str, Any] | None = None,
     ):
         self._name = name
         self._trace_id = trace_id or util.gen_trace_id()
