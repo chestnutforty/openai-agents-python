@@ -109,6 +109,16 @@ class Trace(abc.ABC):
             - Helps identify the purpose of the trace
         """
         pass
+    
+    @property
+    @abc.abstractmethod
+    def trace_data(self) -> dict[str, Any] | None:
+        """Get the trace data as a dictionary.
+
+        Returns:
+            dict | None: Trace data in dictionary format, or None if tracing is disabled.
+        """
+        pass
 
     @abc.abstractmethod
     def export(self) -> dict[str, Any] | None:
@@ -123,6 +133,8 @@ class Trace(abc.ABC):
             - May include metadata and group ID
         """
         pass
+    
+    
 
 
 class NoOpTrace(Trace):
@@ -185,6 +197,15 @@ class NoOpTrace(Trace):
         """
         return "no-op"
 
+    @property
+    def trace_data(self) -> dict[str, Any] | None:
+        """The trace data as a dictionary.
+
+        Returns:
+            dict | None: Trace data in dictionary format, or None if tracing is disabled.
+        """
+        return None
+    
     def export(self) -> dict[str, Any] | None:
         """Export the trace data as a dictionary.
 
@@ -218,10 +239,12 @@ class TraceImpl(Trace):
         trace_id: str | None,
         group_id: str | None,
         metadata: dict[str, Any] | None,
+        trace_data: dict[str, Any] | None,
         processor: TracingProcessor,
     ):
         self._name = name
         self._trace_id = trace_id or util.gen_trace_id()
+        self._trace_data = trace_data
         self.group_id = group_id
         self.metadata = metadata
         self._prev_context_token: contextvars.Token[Trace | None] | None = None
@@ -235,6 +258,10 @@ class TraceImpl(Trace):
     @property
     def name(self) -> str:
         return self._name
+    
+    @property
+    def trace_data(self) -> dict[str, Any] | None:
+        return self._trace_data
 
     def start(self, mark_as_current: bool = False):
         if self._started:
@@ -268,11 +295,16 @@ class TraceImpl(Trace):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.finish(reset_current=exc_type is not GeneratorExit)
 
-    def export(self) -> dict[str, Any] | None:
-        return {
+    def export(self) -> dict[str, Any]:
+        export_data = {
             "object": "trace",
             "id": self.trace_id,
             "workflow_name": self.name,
             "group_id": self.group_id,
             "metadata": self.metadata,
         }
+        
+        if self._trace_data is not None:
+            export_data["trace_data"] = self._trace_data
+            
+        return export_data
