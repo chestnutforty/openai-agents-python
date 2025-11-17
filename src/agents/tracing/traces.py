@@ -263,6 +263,10 @@ class TraceImpl(Trace):
     def trace_data(self) -> dict[str, Any] | None:
         return self._trace_data
 
+    @trace_data.setter
+    def trace_data(self, value: dict[str, Any] | None):
+        self._trace_data = value
+
     def start(self, mark_as_current: bool = False):
         if self._started:
             return
