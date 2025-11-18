@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from contextvars import ContextVar
 from dataclasses import dataclass
+import traceback
 from typing import TYPE_CHECKING, Any, Literal, Union, cast, overload
 
 from openai import APIStatusError, AsyncOpenAI, AsyncStream, Omit, omit
@@ -132,7 +133,7 @@ class OpenAIResponsesModel(Model):
                 if tracing.include_data():
                     span_response.span_data.response = response
                     span_response.span_data.input = input
-            except Exception as e:
+            except Exception as e:                
                 span_response.set_error(
                     SpanError(
                         message="Error getting response",
@@ -143,6 +144,7 @@ class OpenAIResponsesModel(Model):
                 )
                 request_id = e.request_id if isinstance(e, APIStatusError) else None
                 logger.error(f"Error getting response: {e}. (request_id: {request_id})")
+                logger.error(traceback.format_exc())
                 raise
 
         return ModelResponse(
