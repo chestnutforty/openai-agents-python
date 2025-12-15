@@ -118,20 +118,31 @@ class MCPUtil:
         agent: "AgentBase",
     ) -> list[Tool]:
         """Get all function tools from a list of MCP servers."""
-        tools = []
-        tool_names: set[str] = set()
+        # First pass: collect all tools and track which names appear in multiple servers
+        server_tools_map: dict[str, list[tuple["MCPTool", "MCPServer"]]] = {}
         for server in servers:
-            server_tools = await cls.get_function_tools(
-                server, convert_schemas_to_strict, run_context, agent
-            )
-            server_tool_names = {tool.name for tool in server_tools}
-            if len(server_tool_names & tool_names) > 0:
-                raise UserError(
-                    f"Duplicate tool names found across MCP servers: "
-                    f"{server_tool_names & tool_names}"
+            with mcp_tools_span(server=server.name) as span:
+                mcp_tools = await server.list_tools(run_context, agent)
+                span.span_data.result = [tool.name for tool in mcp_tools]
+            for tool in mcp_tools:
+                if tool.name not in server_tools_map:
+                    server_tools_map[tool.name] = []
+                server_tools_map[tool.name].append((tool, server))
+
+        # Find duplicated tool names
+        duplicated_names = {name for name, entries in server_tools_map.items() if len(entries) > 1}
+
+        # Second pass: convert to FunctionTools, prefixing only duplicates
+        tools = []
+        for tool_name, entries in server_tools_map.items():
+            for mcp_tool, server in entries:
+                func_tool = cls.to_function_tool(
+                    mcp_tool,
+                    server,
+                    convert_schemas_to_strict,
+                    prefix_with_server=tool_name in duplicated_names,
                 )
-            tool_names.update(server_tool_names)
-            tools.extend(server_tools)
+                tools.append(func_tool)
 
         return tools
 
@@ -153,7 +164,11 @@ class MCPUtil:
 
     @classmethod
     def to_function_tool(
-        cls, tool: "MCPTool", server: "MCPServer", convert_schemas_to_strict: bool
+        cls,
+        tool: "MCPTool",
+        server: "MCPServer",
+        convert_schemas_to_strict: bool,
+        prefix_with_server: bool = False,
     ) -> FunctionTool:
         """Convert an MCP tool to an Agents SDK function tool."""
         invoke_func = functools.partial(cls.invoke_mcp_tool, server, tool)
@@ -170,8 +185,11 @@ class MCPUtil:
             except Exception as e:
                 logger.info(f"Error converting MCP schema to strict mode: {e}")
 
+        # Only prefix tool name with server name when there are collisions
+        tool_name = f"{server.name}__{tool.name}" if prefix_with_server else tool.name
+
         return FunctionTool(
-            name=tool.name,
+            name=tool_name,
             description=tool.description or "",
             params_json_schema=schema,
             on_invoke_tool=invoke_func,
