@@ -34,9 +34,9 @@ class BackendSpanExporter(TracingExporter):
         organization: str | None = None,
         project: str | None = None,
         endpoint: str = "https://api.openai.com/v1/traces/ingest",
-        max_retries: int = 3,
-        base_delay: float = 1.0,
-        max_delay: float = 30.0,
+        max_retries: int = 5,
+        base_delay: float = 2.0,
+        max_delay: float = 60.0,
     ):
         """
         Args:
@@ -165,8 +165,8 @@ class BatchTraceProcessor(TracingProcessor):
         self,
         exporter: TracingExporter,
         max_queue_size: int = 8192,
-        max_batch_size: int = 128,
-        schedule_delay: float = 5.0,
+        max_batch_size: int = 32,
+        schedule_delay: float = 15.0,
         export_trigger_ratio: float = 0.7,
     ):
         """
