@@ -300,15 +300,10 @@ class TraceImpl(Trace):
         self.finish(reset_current=exc_type is not GeneratorExit)
 
     def export(self) -> dict[str, Any]:
-        export_data = {
+        return {
             "object": "trace",
             "id": self.trace_id,
             "workflow_name": self.name,
             "group_id": self.group_id,
             "metadata": self.metadata,
         }
-        
-        if self._trace_data is not None:
-            export_data["trace_data"] = self._trace_data
-            
-        return export_data
