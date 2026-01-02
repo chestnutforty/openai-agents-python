@@ -88,6 +88,28 @@ class BackendSpanExporter(TracingExporter):
     def project(self):
         return self._project or os.environ.get("OPENAI_PROJECT_ID")
 
+    # OpenAI Tracing API enforces a 1MB (1,048,576 bytes) limit per span_data.output field.
+    # We use 95% of that limit to account for JSON encoding overhead (escaping, unicode, etc.)
+    TRACE_API_MAX_STRING_BYTES = 1_048_576
+    TRACE_API_STRING_LIMIT = int(TRACE_API_MAX_STRING_BYTES * 0.95)
+
+    def _truncate_string(self, value: str, max_len: int) -> str:
+        """Truncate a string if it exceeds the limit, preserving useful context."""
+        if len(value) <= max_len:
+            return value
+        suffix = f"\n\n[... truncated {len(value) - max_len:,} of {len(value):,} chars]"
+        return value[: max_len - len(suffix)] + suffix
+
+    def _truncate_for_export(self, obj: Any, max_string_len: int) -> Any:
+        """Recursively truncate string fields to respect OpenAI Tracing API limits."""
+        if isinstance(obj, str):
+            return self._truncate_string(obj, max_string_len)
+        elif isinstance(obj, dict):
+            return {k: self._truncate_for_export(v, max_string_len) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._truncate_for_export(item, max_string_len) for item in obj]
+        return obj
+
     def export(self, items: list[Trace | Span[Any]]) -> None:
         if not items:
             return
@@ -96,7 +118,11 @@ class BackendSpanExporter(TracingExporter):
             logger.warning("OPENAI_API_KEY is not set, skipping trace export")
             return
 
-        data = [item.export() for item in items if item.export()]
+        data = [
+            self._truncate_for_export(item.export(), self.TRACE_API_STRING_LIMIT)
+            for item in items
+            if item.export()
+        ]
         payload = {"data": data}
 
         headers = {
