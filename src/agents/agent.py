@@ -72,6 +72,12 @@ class MCPConfig(TypedDict):
     best-effort conversion, so some schemas may not be convertible. Defaults to False.
     """
 
+    include_when_to_use: NotRequired[bool]
+    """If True, we will include the 'when_to_use' metadata from MCP tools in the tool
+    descriptions. This provides additional guidance to the model on when to use each tool.
+    Defaults to False.
+    """
+
 
 @dataclass
 class AgentBase(Generic[TContext]):
@@ -104,8 +110,13 @@ class AgentBase(Generic[TContext]):
     async def get_mcp_tools(self, run_context: RunContextWrapper[TContext]) -> list[Tool]:
         """Fetches the available tools from the MCP servers."""
         convert_schemas_to_strict = self.mcp_config.get("convert_schemas_to_strict", False)
+        include_when_to_use = self.mcp_config.get("include_when_to_use", False)
         return await MCPUtil.get_all_function_tools(
-            self.mcp_servers, convert_schemas_to_strict, run_context, self
+            self.mcp_servers,
+            convert_schemas_to_strict,
+            run_context,
+            self,
+            include_when_to_use=include_when_to_use,
         )
 
     async def get_all_tools(self, run_context: RunContextWrapper[TContext]) -> list[Tool]:

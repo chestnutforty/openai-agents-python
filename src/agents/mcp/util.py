@@ -116,6 +116,7 @@ class MCPUtil:
         convert_schemas_to_strict: bool,
         run_context: RunContextWrapper[Any],
         agent: "AgentBase",
+        include_when_to_use: bool = False,
     ) -> list[Tool]:
         """Get all function tools from a list of MCP servers."""
         # First pass: collect all tools and track which names appear in multiple servers
@@ -141,6 +142,7 @@ class MCPUtil:
                     server,
                     convert_schemas_to_strict,
                     prefix_with_server=tool_name in duplicated_names,
+                    include_when_to_use=include_when_to_use,
                 )
                 tools.append(func_tool)
 
@@ -153,6 +155,7 @@ class MCPUtil:
         convert_schemas_to_strict: bool,
         run_context: RunContextWrapper[Any],
         agent: "AgentBase",
+        include_when_to_use: bool = False,
     ) -> list[Tool]:
         """Get all function tools from a single MCP server."""
 
@@ -160,7 +163,12 @@ class MCPUtil:
             tools = await server.list_tools(run_context, agent)
             span.span_data.result = [tool.name for tool in tools]
 
-        return [cls.to_function_tool(tool, server, convert_schemas_to_strict) for tool in tools]
+        return [
+            cls.to_function_tool(
+                tool, server, convert_schemas_to_strict, include_when_to_use=include_when_to_use
+            )
+            for tool in tools
+        ]
 
     @classmethod
     def to_function_tool(
@@ -169,6 +177,7 @@ class MCPUtil:
         server: "MCPServer",
         convert_schemas_to_strict: bool,
         prefix_with_server: bool = False,
+        include_when_to_use: bool = False,
     ) -> FunctionTool:
         """Convert an MCP tool to an Agents SDK function tool."""
         invoke_func = functools.partial(cls.invoke_mcp_tool, server, tool)
@@ -188,9 +197,16 @@ class MCPUtil:
         # Only prefix tool name with server name when there are collisions
         tool_name = f"{server.name}__{tool.name}" if prefix_with_server else tool.name
 
+        # Build description, optionally including when_to_use from meta
+        description = tool.description or ""
+        if include_when_to_use and hasattr(tool, 'meta') and tool.meta:
+            when_to_use = tool.meta.get("when_to_use")
+            if when_to_use:
+                description = f"{description}\n\n## When to use\n{when_to_use}"
+
         return FunctionTool(
             name=tool_name,
-            description=tool.description or "",
+            description=description,
             params_json_schema=schema,
             on_invoke_tool=invoke_func,
             strict_json_schema=is_strict,
