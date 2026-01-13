@@ -219,10 +219,11 @@ class MCPUtil:
         """Invoke an MCP tool and return the result as a string."""
         try:
             json_data: dict[str, Any] = json.loads(input_json) if input_json else {}
-            if hasattr(context.context, 'cutoff_date'):
-                json_data['cutoff_date'] = context.context.cutoff_date   
-            else:
-                print("[WARNING] No cutoff date provided for tool {tool.name}")             
+            if getattr(context.context, 'backtest', False):
+                if hasattr(context.context, 'cutoff_date'):
+                    json_data['cutoff_date'] = context.context.cutoff_date
+                else:
+                    logger.warning(f"Backtest mode enabled but no cutoff_date provided for tool {tool.name}")
         except Exception as e:
             if _debug.DONT_LOG_TOOL_DATA:
                 logger.debug(f"Invalid JSON input for tool {tool.name}")
