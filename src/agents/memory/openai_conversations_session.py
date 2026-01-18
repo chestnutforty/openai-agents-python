@@ -67,10 +67,14 @@ class OpenAIConversationsSession(SessionABC):
 
     async def add_items(self, items: list[TResponseInputItem]) -> None:
         session_id = await self._get_session_id()
-        await self._openai_client.conversations.items.create(
-            conversation_id=session_id,
-            items=items,
-        )
+        # Batch items in chunks of 20 to avoid API limit
+        batch_size = 20
+        for i in range(0, len(items), batch_size):
+            batch = items[i:i + batch_size]
+            await self._openai_client.conversations.items.create(
+                conversation_id=session_id,
+                items=batch,
+            )
 
     async def pop_item(self) -> TResponseInputItem | None:
         session_id = await self._get_session_id()
